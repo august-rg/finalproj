@@ -1,5 +1,11 @@
 # load in the BN learn library
+# and download "Rgraphviz"
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
 
+BiocManager::install("Rgraphviz")
+
+library("Rgraphviz")
 library("bnlearn")
 
 
@@ -16,7 +22,7 @@ plot(test)
 # it is a 2*4 matrix with column names specifying where the arc starts and ends
 edges <- matrix(c("sex", "eats",
                   "age", "eats",
-                  "companion", "age",
+                  #"companion", "age",
                   "companion", "eats"),
                 byrow = TRUE, ncol = 2,
                 dimnames = list(NULL, c("from", "to")))
@@ -30,6 +36,22 @@ arcs(test) <- edges
 # note that R by default makes the graph directed
 plot(test)
 
+
+# this is some math thing, will be helpful for calculating cond prob
+# a variable has a v-structure iff it has two upcoming parents
+# funciton tells us that only "eats" has a v-structure, also tells us
+# the composition of these v-structs
+vstructs(test)
+
+# this tells us some stuff about the DAG
+cpdag(test)
+
+# cool, makes the moral graph, basically connects all non-adjacent nodes
+# and undirects directed edges
+plot(moral(test))
+
+plot(skeleton(test))
+
 # now comes the challenging part, we want to use Bayes Theorem to store
 # the conditional probabilities between edges
 # I think that with data, we could tell R to learn the probabilities
@@ -37,10 +59,40 @@ plot(test)
 # we want to create the conditional probability table by hand now
 # we need to store the states of each node into individual objects
 
+
+
+#------------------adding in conditional probabilities--------------------------
+
+# Before providing the probabilites of each of the variables effecting the 
+# outcome we first must tell R what the binary varibales are for each
+# column in the dataframe
 sex <- c("boy", "girl")
 age <- c("<3", ">3")
 companion <- c("yes", "no")
+outcome <- c("eaten", "not eaten")
 
+# now that the varibles have been defined we are able to assign the probabilities
+# of each event. A probability is set for each variable 
+
+# we might need to remove the probability for outcome, but not sure yet?!
+s.prob <- array(c(0.5, 0.5), dim = 2, dimnames = list(sex))
+a.prob <- array(c(0.5, 0.5), dim = 2, dimnames = list(age))
+c.prob <- array(c(0.5, 0.5), dim =2, dimnames = list(companion))
+o.prob <- array(c(0.6, 0.4, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5), dim = c(2, 2, 2, 2), dimnames = list(E = outcome, S = sex, A = age, C = companion))
+
+
+?array
+
+
+# with the conditionall probabilites set, we can now turn them into a table 
+t.cpt <- list(age = a.prob, companion = c.prob, sex = s.prob, eats = o.prob)
+
+# and boom we've got a network 
+bn <- custom.fit(test, t.cpt)
+
+
+
+# the steps outlined in this can also been seen in section 3.2 of the attached link
 # this is as far as we were able to get on creating a graph by hand before
 # getting highly confused by conditional probability... much more to come
 
@@ -145,21 +197,31 @@ populate.outcomes <- function(x, y, z, p){
     if(marshmallows$sex[i] == x){
      if(marshmallows$age[i] == y){
        if(marshmallows$companion[i] == z){
-        marshmallows$outcome[i] <- prop.vector(subset.size(x, y, z), p, "yes", "no")[i]
-        print(prop.vector(subset.size(x, y, z), p, "yes", "no")[i])
+        for(i in 1:subset.size(x, y, z)){
+          print(prop.vector(subset.size(x, y, z), p, "yes", "no")[i])
+          marshmallows$outcome[i] <- prop.vector(subset.size(x, y, z), p, "yes", "no")[i]
         }
-      } 
-    } 
+         #marshmallows$outcome[i] <- prop.vector(subset.size(x, y, z), p, "yes", "no")[i]
+        #print(prop.vector(subset.size(x, y, z), p, "yes", "no")[i])
+        } else {marshmallows$outcome <- NA}
+      } else {marshmallows$outcome <- NA}
+    } else {marshmallows$outcome <- NA}
   }
 }
+
+?update
+
+marshmallows
  
+marshmallows$outcome
+prop.vector(10, 0.5, "ten", "tep")[3]
 
 populate.outcomes("boy", ">3", "no", 0.6)
 
 # current problem: having the prop.vector inside of for loop makes a vector
 # that is what we want kinda for first two entries but then is a bunch of NA values
 # need to debug this so that we have full vector to select from 
-
+marshmallows$outcome
 
 
 
